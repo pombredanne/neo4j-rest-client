@@ -6,10 +6,19 @@ import httplib2
 import re
 import json
 import time
-from urlparse import urlsplit
+from urlparse import urlparse
 
 import options
 from constants import __version__
+
+if options.DEBUG:
+    httplib2.debuglevel = 1
+else:
+    httplib2.debuglevel = 0
+if options.CACHE:
+    http = httplib2.Http(options.CACHE_STORE)
+else:
+    http = httplib2.Http()
 
 
 class StatusException(Exception):
@@ -20,71 +29,95 @@ class StatusException(Exception):
     def __init__(self, value, result=None):
         self.value = value
         self.responses = {
-        100: ('Continue', 'Request received, please continue'),
-        101: ('Switching Protocols',
-              'Switching to new protocol; obey Upgrade header'),
-        200: ('OK', 'Request fulfilled, document follows'),
-        201: ('Created', 'Document created, URL follows'),
-        202: ('Accepted',
-              'Request accepted, processing continues off-line'),
-        203: ('Non-Authoritative Information', 'Request fulfilled from cache'),
-        204: ('No Content', 'Request fulfilled, nothing follows'),
-        205: ('Reset Content', 'Clear input form for further input.'),
-        206: ('Partial Content', 'Partial content follows.'),
-        300: ('Multiple Choices',
-              'Object has several resources -- see URI list'),
-        301: ('Moved Permanently', 'Object moved permanently -- see URI list'),
-        302: ('Found', 'Object moved temporarily -- see URI list'),
-        303: ('See Other', 'Object moved -- see Method and URL list'),
-        304: ('Not Modified',
-              'Document has not changed since given time'),
-        305: ('Use Proxy',
-              'You must use proxy specified in Location to access this '
-              'resource.'),
-        307: ('Temporary Redirect',
-              'Object moved temporarily -- see URI list'),
-        400: ('Bad Request',
-              'Bad request syntax or unsupported method'),
-        401: ('Unauthorized',
-              'No permission -- see authorization schemes'),
-        402: ('Payment Required',
-              'No payment -- see charging schemes'),
-        403: ('Forbidden',
-              'Request forbidden -- authorization will not help'),
-        404: ('Not Found', 'Nothing matches the given URI'),
-        405: ('Method Not Allowed',
-              'Specified method is invalid for this server.'),
-        406: ('Not Acceptable', 'URI not available in preferred format.'),
-        407: ('Proxy Authentication Required', 'You must authenticate with '
-              'this proxy before proceeding.'),
-        408: ('Request Timeout', 'Request timed out; try again later.'),
-        409: ('Conflict', 'Request conflict.'),
-        410: ('Gone',
-              'URI no longer exists and has been permanently removed.'),
-        411: ('Length Required', 'Client must specify Content-Length.'),
-        412: ('Precondition Failed', 'Precondition in headers is false.'),
-        413: ('Request Entity Too Large', 'Entity is too large.'),
-        414: ('Request-URI Too Long', 'URI is too long.'),
-        415: ('Unsupported Media Type', 'Entity body in unsupported format.'),
-        416: ('Requested Range Not Satisfiable',
-              'Cannot satisfy request range.'),
-        417: ('Expectation Failed',
-              'Expect condition could not be satisfied.'),
-        418: ('I\'m a teapot', 'Is the server running?'),
-        500: ('Internal Server Error', 'Server got itself in trouble'),
-        501: ('Not Implemented',
-              'Server does not support this operation'),
-        502: ('Bad Gateway', 'Invalid responses from another server/proxy.'),
-        503: ('Service Unavailable',
-              'The server cannot process the request due to a high load'),
-        504: ('Gateway Timeout',
-              'The gateway server did not receive a timely response'),
-        505: ('HTTP Version Not Supported', 'Cannot fulfill request.'),
+            100: ('Continue',
+                  'Request received, please continue'),
+            101: ('Switching Protocols',
+                  'Switching to new protocol; obey Upgrade header'),
+            200: ('OK',
+                  'Request fulfilled, document follows'),
+            201: ('Created',
+                  'Document created, URL follows'),
+            202: ('Accepted',
+                  'Request accepted, processing continues off-line'),
+            203: ('Non-Authoritative Information',
+                  'Request fulfilled from cache'),
+            204: ('No Content',
+                  'Request fulfilled, nothing follows'),
+            205: ('Reset Content',
+                  'Clear input form for further input.'),
+            206: ('Partial Content',
+                  'Partial content follows.'),
+            300: ('Multiple Choices',
+                  'Object has several resources -- see URI list'),
+            301: ('Moved Permanently',
+                  'Object moved permanently -- see URI list'),
+            302: ('Found',
+                  'Object moved temporarily -- see URI list'),
+            303: ('See Other',
+                  'Object moved -- see Method and URL list'),
+            304: ('Not Modified',
+                  'Document has not changed since given time'),
+            305: ('Use Proxy',
+                  'You must use proxy specified in Location to access this '
+                  'resource.'),
+            307: ('Temporary Redirect',
+                  'Object moved temporarily -- see URI list'),
+            400: ('Bad Request',
+                  'Bad request syntax or unsupported method'),
+            401: ('Unauthorized',
+                  'No permission -- see authorization schemes'),
+            402: ('Payment Required',
+                  'No payment -- see charging schemes'),
+            403: ('Forbidden',
+                  'Request forbidden -- authorization will not help'),
+            404: ('Not Found',
+                  'Nothing matches the given URI'),
+            405: ('Method Not Allowed',
+                  'Specified method is invalid for this server.'),
+            406: ('Not Acceptable',
+                  'URI not available in preferred format.'),
+            407: ('Proxy Authentication Required',
+                  'You must authenticate with '
+                  'this proxy before proceeding.'),
+            408: ('Request Timeout',
+                  'Request timed out; try again later.'),
+            409: ('Conflict',
+                  'Request conflict.'),
+            410: ('Gone',
+                  'URI no longer exists and has been permanently removed.'),
+            411: ('Length Required',
+                  'Client must specify Content-Length.'),
+            412: ('Precondition Failed',
+                  'Precondition in headers is false.'),
+            413: ('Request Entity Too Large',
+                  'Entity is too large.'),
+            414: ('Request-URI Too Long',
+                  'URI is too long.'),
+            415: ('Unsupported Media Type',
+                  'Entity body in unsupported format.'),
+            416: ('Requested Range Not Satisfiable',
+                  'Cannot satisfy request range.'),
+            417: ('Expectation Failed',
+                  'Expect condition could not be satisfied.'),
+            418: ('I\'m a teapot',
+                  'Is the server running?'),
+            500: ('Internal Server Error',
+                  'Server got itself in trouble'),
+            501: ('Not Implemented',
+                  'Server does not support this operation'),
+            502: ('Bad Gateway',
+                  'Invalid responses from another server/proxy.'),
+            503: ('Service Unavailable',
+                  'The server cannot process the request due to a high load'),
+            504: ('Gateway Timeout',
+                  'The gateway server did not receive a timely response'),
+            505: ('HTTP Version Not Supported',
+                  'Cannot fulfill request.'),
         }
         if result:
             self.result = "\n%s" % result
         else:
-            self.result = None # pedantic, but needed for __str__()
+            self.result = None  # pedantic, but needed for __str__()
 
     def __str__(self):
         return u"Error [%s]: %s. %s.%s" % (self.value,
@@ -120,7 +153,7 @@ class Request(object):
     """
 
     def __init__(self, username=None, password=None, key_file=None,
-                 cert_file=None):
+                 cert_file=None, **kwargs):
         self.username = username
         self.password = password
         self.key_file = key_file
@@ -205,8 +238,6 @@ class Request(object):
     def _json_encode(self, data, ensure_ascii=False):
 
         def _any(data):
-            DATE_FORMAT = "%Y-%m-%d"
-            TIME_FORMAT = "%H:%M:%S"
             ret = None
             if isinstance(data, (list, tuple)):
                 ret = _list(data)
@@ -215,12 +246,11 @@ class Request(object):
             elif isinstance(data, decimal.Decimal):
                 ret = str(data)
             elif isinstance(data, datetime.datetime):
-                ret = self._strftime(data,
-                                     "%s %s" % (DATE_FORMAT, TIME_FORMAT))
+                ret = self._strftime(data, options.DATETIME_FORMAT)
             elif isinstance(data, datetime.date):
-                ret = self._strftime(data, DATE_FORMAT)
+                ret = self._strftime(data, options.DATE_FORMAT)
             elif isinstance(data, datetime.time):
-                ret = data.strftime(TIME_FORMAT)
+                ret = data.strftime(options.TIME_FORMAT)
             else:
                 ret = data
             return ret
@@ -235,14 +265,33 @@ class Request(object):
             ret = {}
             for k, v in data.items():
                 # Neo4j doesn't allow 'null' properties
-                if v != None:
+                if v is not None:
                     ret[k] = _any(v)
             return ret
         ret = _any(data)
         return json.dumps(ret, ensure_ascii=ensure_ascii)
 
     def _request(self, method, url, data={}, headers={}):
-        splits = urlsplit(url)
+        splits = urlparse(url)
+        if splits.port:
+            port = u":%s" % splits.port
+        else:
+            port = u""
+        if splits.query and splits.fragment:
+            root_uri = "%s://%s%s%s?%s#%s" % (splits.scheme, splits.hostname,
+                                              port, splits.path,
+                                              splits.query, splits.fragment)
+        elif splits.query:
+            root_uri = "%s://%s%s%s?%s" % (splits.scheme, splits.hostname,
+                                           port, splits.path,
+                                           splits.query)
+        elif splits.fragment:
+            root_uri = "%s://%s%s%s#%s" % (splits.scheme, splits.hostname,
+                                           port, splits.path,
+                                           splits.fragment)
+        else:
+            root_uri = "%s://%s%s%s" % (splits.scheme, splits.hostname,
+                                        port, splits.path)
         scheme = splits.scheme
         # Not used, it makes pyflakes happy
         # hostname = splits.hostname
@@ -250,26 +299,18 @@ class Request(object):
         username = splits.username or self.username
         password = splits.password or self.password
         headers = headers or {}
-        if options.DEBUG:
-            httplib2.debuglevel = 1
-        else:
-            httplib2.debuglevel = 0
-        if options.CACHE:
-            headers['Cache-Control'] = 'no-cache'
-            http = httplib2.Http(".cache")
-        else:
-            http = httplib2.Http()
         if scheme.lower() == 'https':
-            http.add_certificate(self.key_file, self.cert_file, self.url)
+            http.add_certificate(key=self.key_file, cert=self.cert_file,
+                                 domain='')
         headers['Accept'] = 'application/json'
         headers['Accept-Encoding'] = '*'
         headers['Accept-Charset'] = 'ISO-8859-1,utf-8;q=0.7,*;q=0.7'
-        # I'm not sure on the right policy about cache with Neo4j REST Server
-        # headers['Cache-Control'] = 'no-cache'
-        # TODO: Handle all requests with the same Http object
-        headers['Connection'] = 'close'
+        headers['Connection'] = 'keep-alive'
+        if not options.CACHE:
+            headers['Cache-Control'] = 'no-cache'
         headers['User-Agent'] = 'Neo4jPythonClient/%s ' % __version__
         if username and password:
+            http.add_credentials(username, password)
             credentials = "%s:%s" % (username, password)
             base64_credentials = base64.encodestring(credentials)
             authorization = "Basic %s" % base64_credentials[:-1]
@@ -285,7 +326,7 @@ class Request(object):
         # else:
         body = self._json_encode(data, ensure_ascii=True)
         try:
-            response, content = http.request(url, method, headers=headers,
+            response, content = http.request(root_uri, method, headers=headers,
                                              body=body)
             if response.status == 401:
                 raise StatusException(401, "Authorization Required")
